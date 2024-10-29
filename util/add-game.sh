@@ -27,6 +27,25 @@ function print_success { echo -e "${color_success}[SUCCESS] $1${color_reset}"; }
 function print_error { echo -e "${color_error}[ERROR] $1${color_reset}"; }
 function print_warning { echo -e "${color_warning}[WARNING] $1${color_reset}"; }
 
+function parse_flags {
+# Parse command-line arguments
+    while [[ "$#" -gt 0 ]]; do
+        case $1 in
+            -f|--file)                # -f or --file specifies a custom file path
+                file_path="$2"
+                shift                  # Skip the file path after the flag
+                ;;
+            -d|--dry-run)              # -d or --dry-run enables dry run mode
+                dry_run=true
+                ;;
+            *)                         # Any unrecognized flag
+                print_error "Unknown parameter passed: $1"
+                exit 1
+                ;;
+        esac
+        shift                          # Move to the next argument
+    done
+}
 # Validates input flags.
 function check_flags {
     print_info "File Path: ${csv_path}"
@@ -104,7 +123,7 @@ function display_appended_data {
 ###############################################################################
 # Begin Execution
 ###############################################################################
-
+parse_flags
 check_flags
 read_game_info
 read_hole_info
