@@ -27,19 +27,37 @@ function print_success { echo -e "${color_success}[SUCCESS] $1${color_reset}"; }
 function print_error { echo -e "${color_error}[ERROR] $1${color_reset}"; }
 function print_warning { echo -e "${color_warning}[WARNING] $1${color_reset}"; }
 
+function print_usage {
+    echo -e "${color_info}Usage: $0 [options]${color_reset}"
+    echo -e "${color_info}Options:${color_reset}"
+    echo -e "  -f, --file <path>       Specify a custom file path for saving golf data (default: ./golf-scores.csv)"
+    echo -e "  -d, --dry-run           Enable dry run mode (no changes will be saved)"
+    echo -e "  -h, --help              Display this help message and exit"
+    echo ""
+    echo -e "${color_info}Examples:${color_reset}"
+    echo -e "  $0 -f /path/to/custom-file.csv   Specify a custom file for saving data"
+    echo -e "  $0 -d                            Run in dry run mode"
+    echo -e "  $0 -h                            Display help message"
+}
+
 function parse_flags {
 # Parse command-line arguments
     while [[ "$#" -gt 0 ]]; do
         case $1 in
             -f|--file)                # -f or --file specifies a custom file path
-                file_path="$2"
+                csv_path="$2"
                 shift                  # Skip the file path after the flag
                 ;;
             -d|--dry-run)              # -d or --dry-run enables dry run mode
                 dry_run=true
                 ;;
+            -h|--help)
+                print_usage
+                exit 0
+                ;;
             *)                         # Any unrecognized flag
                 print_error "Unknown parameter passed: $1"
+                print_usage
                 exit 1
                 ;;
         esac
@@ -123,9 +141,11 @@ function display_appended_data {
 ###############################################################################
 # Begin Execution
 ###############################################################################
-parse_flags
+parse_flags "$@"
 check_flags
 read_game_info
 read_hole_info
 validate_entries
 write_data
+
+exit 0
