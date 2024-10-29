@@ -9,8 +9,21 @@
 ###############################################################################
 # Begin Variables
 ###############################################################################
+# Values Used For Validation
+# Par, assume all holes are par 3 or par 5
+MIN_PAR_9=27
+MIN_PAR_18=54
+MAX_PAR_9=45
+MAX_PAR_18=90
+# Scores, assume min is all hole-in-ones (impossible lol) and max is all triple bogeys on an all par 5 course
+MAX_SCORE_9=72
+MIN_SCORE_9=9
+MAX_SCORE_18=144
+MIN_SCORE_18=18
+
 csv_path="../data/golf-scores.csv"
 dry_run=false
+push=false
 
 color_info="\033[0;36m"   # Cyan
 color_success="\033[0;32m" # Green
@@ -33,11 +46,13 @@ function print_usage {
     echo -e "  -f, --file <path>       Specify a custom file path for saving golf data (default: ./golf-scores.csv)"
     echo -e "  -d, --dry-run           Enable dry run mode (no changes will be saved)"
     echo -e "  -h, --help              Display this help message and exit"
+    echo -e "  -p, --push              Pushes to remote repository after adding to data file."
     echo ""
     echo -e "${color_info}Examples:${color_reset}"
     echo -e "  $0 -f /path/to/custom-file.csv   Specify a custom file for saving data"
     echo -e "  $0 -d                            Run in dry run mode"
     echo -e "  $0 -h                            Display help message"
+    echo -e "  $0 -p                            Push to remote repo"
 }
 
 function parse_flags {
@@ -54,6 +69,9 @@ function parse_flags {
             -h|--help)
                 print_usage
                 exit 0
+                ;;
+            -p|--push-data)
+                push=true
                 ;;
             *)                         # Any unrecognized flag
                 print_error "Unknown parameter passed: $1"
@@ -105,6 +123,29 @@ function read_hole_info {
     done
 }
 
+function validate_game_input {
+    echo "NOT IMPLEMENTED"
+}
+
+function validate_hole_input {
+    echo "NOT IMPLEMENTED"
+}
+
+function validate_game {
+    echo "NOT IMPLEMENTED"
+}
+
+function push_data {
+    if ${push}; then
+        date_pushed=$(date)
+        commit_message="Added round at ${course_name} on ${date_pushed}"
+        git add -A;
+        git commit -m"${commit_message}"
+        git push
+        print_success "Pushed data to remote repository."
+    fi
+}
+
 # Validate entries
 function validate_entries {
     if [[ -z ${course_name} || -z ${date} || -z ${total_score} || -z ${course_par} || -z ${tee_position} ]]; then
@@ -144,8 +185,12 @@ function display_appended_data {
 parse_flags "$@"
 check_flags
 read_game_info
+validate_game_input
 read_hole_info
+validate_hole_input
 validate_entries
+validate_game
 write_data
+push_data
 
 exit 0
