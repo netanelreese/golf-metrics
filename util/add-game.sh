@@ -15,12 +15,23 @@ MIN_PAR_9=27
 MIN_PAR_18=54
 MAX_PAR_9=45
 MAX_PAR_18=90
+MAX_PAR=0
+MIN_PAR=0
 # Scores, assume min is all hole-in-ones (impossible lol) and max is all triple bogeys on an all par 5 course
 MAX_SCORE_9=72
 MIN_SCORE_9=9
 MAX_SCORE_18=144
 MIN_SCORE_18=18
+MAX_SCORE=0
+MIN_SCORE=0
+# Max yardage, arbitrary 700 yards because i am not gonna play a hole longer than that...
+MAX_YARDAGE=700
+# Number of strokes it takes to reach green for each par value
+GIR_STROKES_3=1
+GIR_STROKES_4=2
+GIR_STROKES_5=3
 
+game_id=1
 csv_path="../data/golf-scores.csv"
 dry_run=false
 push=false
@@ -74,7 +85,7 @@ function parse_flags {
                 push=true
                 ;;
             *)                         # Any unrecognized flag
-                print_error "Unknown parameter passed: $1"
+                print_error "INVALID OPTION: $1"
                 print_usage
                 exit 1
                 ;;
@@ -90,6 +101,21 @@ function check_flags {
     fi
 }
 
+# Sets current max and min based on num holes
+function set_current_bounds {
+    if [[ "${hole_count}" -eq 9 ]]; then
+        MAX_SCORE=${MAX_SCORE_9}
+        MIN_SCORE=${MIN_SCORE_9}
+        MAX_PAR=${MAX_PAR_9}
+        MIN_PAR=${MIN_PAR_9}
+    elif [[ "${hole_count}" -eq 18 ]]; then
+        MAX_SCORE=${MAX_SCORE_18}
+        MIN_SCORE=${MIN_SCORE_18}
+        MAX_PAR=${MAX_PAR_18}
+        MIN_PAR=${MIN_PAR_18}
+    fi
+}
+
 # Read game information
 function read_game_info {
     print_info "Enter the game details:"
@@ -98,17 +124,18 @@ function read_game_info {
     read -p "Total Score: " total_score
     read -p "Course Par: " course_par
     read -p "Tee Position (e.g. white, blue, black): " tee_position
-}
 
-# Read hole information
-function read_hole_info {
-    hole_entries=()
     read -p "Enter number of holes (9 or 18): " hole_count
     if [[ "${hole_count}" -ne 9 && "${hole_count}" -ne 18 ]]; then
         print_error "Invalid entry. Please enter either 9 or 18 for holes."
         exit 1
     fi
+    set_current_bounds
+}
 
+# Read hole information
+function read_hole_info {
+    hole_entries=()
     for (( i=1; i<=hole_count; i++ )); do
         print_info "Enter details for Hole ${i}:"
         read -p "Yardage: " yardage
@@ -118,23 +145,141 @@ function read_hole_info {
         read -p "Hit Fairway (True/False): " hit_fairway
         read -p "Green in Regulation (True/False): " green_in_regulation
         read -p "Number of Putts: " number_of_putts
+
+        validate_hole_input ${yardage} ${hole_par} ${hole_score} ${green_in_regulation} ${number_of_putts}
         
-        hole_entries+=("${i},${yardage},${hole_handicap},${hole_par},${hole_score},${hit_fairway},${green_in_regulation},${number_of_putts}")
+        hole_entries+=("${i},${yardage},${hole_handicap},${hole_par},${hole_score},${hit_fairway},${green_in_regulation},${number_of_putts},${game_id}")
     done
 }
 
+# Gets highest number id from csv and sets the current id to previous + 1.
+function get_id {
+    if [[ -f "${csv_path}" && -s "${csv_path}" ]]; then
+        prev_id=$(awk -F',' 'NR>1 {print $9}' "${csv_path}" | sort -nr | head -n1)
+        game_id=$((prev_id + 1))
+    else
+        print_error "Error setting game id"
+        exit 1
+    fi
+}
+
+function not_bounded() {
+    if [[ $# -ne 3 ]]; then
+        print_error "Function <NOT_BOUNDED> requires 3 parameters... (not_bounded val min max)"
+        exit 1
+    fi
+
+    local val=$1
+    local min=$2
+    local max=$3
+
+    if [[ ${val} -gt ${max} || ${val} -lt ${min} ]]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+function not_lt() {
+    if [[ $# -ne 2 ]]; then
+        print_error "Function <NOT_LT> requires 2 parameters... (not_lt val max)"
+        exit 1
+    fi
+
+    local val=$1
+    local max=$2
+
+    if [[ ${val} -ge ${max} ]]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+function not_gt {
+    if [[ $# -ne 2 ]]; then
+        print_error "Function <NOT_GT> requires 2 parameters... (not_gt val min)"
+        exit 1
+    fi
+
+    local val=$1
+    local min=$2
+
+    if [[ ${val} -le ${min} ]]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
 function validate_game_input {
-    echo "NOT IMPLEMENTED"
+    invalid=false
+
+    # Checks
+    if [[ $(not_bounded ${total_score} ${MIN_SCORE} ${MAX_SCORE}) ]]; then
+        print_error "INVALID SCORE: ${total_score}"
+        invalid=true
+    fi
+    
+    if [[ $(not_bounded ${course_par} ${MIN_PAR} ${MAX_PAR}) ]]; then
+        print_error "INVALID YARDAGE: ${course_par}"
+        invalid=true
+    fi
+    
+    # Exit if the game is invalid.
+    if ${invalid}; then
+        print_error "INPUT ERROR(S), EXITING..."
+        exit 1
+    fi
+}
+
+# Checks if the player did green in regulation
+function not_valid_gir {
+    if [[ $# -ne 3 ]]; then
+        print_error "Invalid number of parameters..: $#"
+        exit 1
+    fi
+
+    score=$1
+    putts=$2
+    par=$3
+    ngs=$((score - putts))  # NGS = non green strokes
+
+    if [[ ${par} -eq 3 && ngs -ne GIR_STROKES_3 ]]; then
+        return 0
+    elif [[ ${par} -eq 4 && ngs -ne GIR_STROKES_4 ]]; then
+        return 0
+    elif [[ ${par} -eq 5 && ngs -ne GIR_STROKES_5 ]]; then
+        return 0
+    fi
+
+    return 1
 }
 
 function validate_hole_input {
-    echo "NOT IMPLEMENTED"
+    if [[ $# -ne 5 ]]; then
+        print_error "Invalid number of parameters..: $#"
+        exit 1
+    fi
+
+    local ydg=$1
+    local par=$2
+    local scr=$3
+    local g_reg=$4
+    local putts=$5
+    
+    # Checks
+    if [[ $(not_bounded ${total_score} ${MIN_SCORE} ${MAX_SCORE}) ]]; then
+        print_error "INVALID SCORE: ${total_score}"
+        invalid=true
+    fi
 }
 
 function validate_game {
     echo "NOT IMPLEMENTED"
 }
 
+# Push data to remote repository
 function push_data {
     if ${push}; then
         date_pushed=$(date)
@@ -160,7 +305,7 @@ function validate_entries {
 
 # Write data to file
 function write_data {
-    game_entry="${course_name},${date},${total_score},${course_par},${tee_position}"
+    game_entry="${course_name},${date},${total_score},${course_par},${tee_position},${game_id}"
 
     if ${dry_run}; then
         print_info "Dry Run: Game Entry - ${game_entry}"
@@ -184,6 +329,7 @@ function display_appended_data {
 ###############################################################################
 parse_flags "$@"
 check_flags
+get_id
 read_game_info
 validate_game_input
 read_hole_info
