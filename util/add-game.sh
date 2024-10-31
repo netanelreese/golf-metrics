@@ -149,7 +149,7 @@ function read_hole_info {
         read -p "Green in Regulation (True/False): " green_in_regulation
         read -p "Number of Putts: " number_of_putts
 
-        validate_hole_input ${yardage} ${hole_par} ${hole_score} ${green_in_regulation} ${number_of_putts}
+        validate_hole_input "${yardage}" "${hole_par}" "${hole_score}" "${green_in_regulation}" "${number_of_putts}"
         
         hole_entries+=("${i},${yardage},${hole_handicap},${hole_par},${hole_score},${hit_fairway},${green_in_regulation},${number_of_putts},${game_id}")
     done
@@ -193,9 +193,9 @@ function not_lt() {
     local max=$2
 
     if [[ ${val} -ge ${max} ]]; then
-        return ${TRUE}
+        return "${TRUE}"
     else
-        return ${FALSE}
+        return "${FALSE}"
     fi
 }
 
@@ -209,9 +209,9 @@ function not_gt {
     local min=$2
 
     if [[ ${val} -le ${min} ]]; then
-        return ${TRUE}
+        return "${TRUE}"
     else
-        return ${FALSE}
+        return "${FALSE}"
     fi
 }
 
@@ -219,12 +219,12 @@ function validate_game_input {
     local invalid=false
 
     # Checks
-    if [[ $(not_bounded ${total_score} ${MIN_SCORE} ${MAX_SCORE}) ]]; then
+    if [[ $(not_bounded "${total_score}" ${MIN_SCORE} ${MAX_SCORE}) ]]; then
         print_error "INVALID SCORE: ${total_score}"
         invalid=true
     fi
     
-    if [[ $(not_bounded ${course_par} ${MIN_PAR} ${MAX_PAR}) ]]; then
+    if [[ $(not_bounded "${course_par}" ${MIN_PAR} ${MAX_PAR}) ]]; then
         print_error "INVALID COURSE PAR: ${course_par}"
         invalid=true
     fi
@@ -238,7 +238,7 @@ function validate_game_input {
 
 # Checks if the player did green in regulation
 function not_valid_gir {
-    if [[ $# -ne 3 ]]; then
+    if [[ $# -ne 4 ]]; then
         print_error "Invalid number of parameters..: $#"
         exit 1
     fi
@@ -246,9 +246,15 @@ function not_valid_gir {
     local score=$1
     local putts=$2
     local par=$3
+    local g_reg=$4
     local ngs=$((score - putts))  # NGS = non green strokes
 
     # Based on par evaluate the non green strokes, if false then exit. (maybe just repeat the loop?)
+    if [[ ${g_reg} -ne ${ngs} ]]; then
+        print_error "Input green in regulation value is not equal to non-green strokes. ${g_reg} =/= ${ngs}"
+        return ${TRUE}
+    fi
+    
     if [[ ${par} -eq 3 && ${ngs} -ne ${GIR_STROKES_3} ]]; then
         return ${TRUE}
     elif [[ ${par} -eq 4 && ${ngs} -ne ${GIR_STROKES_4} ]]; then
@@ -271,7 +277,7 @@ function not_valid_hole_score {
     local min=1
     local max=$((par + 3)) # Max is triple bogey for my sake, dont allow it in your head and you wont do it.
 
-    if [[ not_bounded ${score} ${min} ${max} ]]; then
+    if [[ $(not_bounded "${score}" ${min} ${max}) ]]; then
         return ${TRUE}
     fi
 
@@ -292,12 +298,12 @@ function validate_hole_input {
     local invalid=false
     
     # Checks
-    if [[ $(not_valid_hole_score ${par} ${scr}) ]]; then
+    if [[ $(not_valid_hole_score "${par}" "${scr}") ]]; then
         print_error "INVALID SCORE: ${scr}"
         invalid=true
     fi
 
-    if [[ $(not_valid_gir ${scr} ${putts} ${par}) ]]; then
+    if [[ $(not_valid_gir "${scr}" "${putts}" "${par}" "${g_reg}") ]]; then
         print_error "GREEN IN REGULATION VALUE INVALID"
         invalid=true
     fi
