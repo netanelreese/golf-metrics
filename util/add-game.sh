@@ -9,6 +9,8 @@
 ###############################################################################
 # Begin Variables
 ###############################################################################
+TRUE=0
+FALSE=1
 # Values Used For Validation
 # Par, assume all holes are par 3 or par 5
 MIN_PAR_9=27
@@ -131,6 +133,7 @@ function read_game_info {
         exit 1
     fi
     set_current_bounds
+    validate_game_input
 }
 
 # Read hole information
@@ -174,9 +177,9 @@ function not_bounded() {
     local max=$3
 
     if [[ ${val} -gt ${max} || ${val} -lt ${min} ]]; then
-        return 0
+        return ${TRUE}
     else
-        return 1
+        return ${FALSE}
     fi
 }
 
@@ -190,9 +193,9 @@ function not_lt() {
     local max=$2
 
     if [[ ${val} -ge ${max} ]]; then
-        return 0
+        return ${TRUE}
     else
-        return 1
+        return ${FALSE}
     fi
 }
 
@@ -206,14 +209,14 @@ function not_gt {
     local min=$2
 
     if [[ ${val} -le ${min} ]]; then
-        return 0
+        return ${TRUE}
     else
-        return 1
+        return ${FALSE}
     fi
 }
 
 function validate_game_input {
-    invalid=false
+    local invalid=false
 
     # Checks
     if [[ $(not_bounded ${total_score} ${MIN_SCORE} ${MAX_SCORE}) ]]; then
@@ -222,13 +225,13 @@ function validate_game_input {
     fi
     
     if [[ $(not_bounded ${course_par} ${MIN_PAR} ${MAX_PAR}) ]]; then
-        print_error "INVALID YARDAGE: ${course_par}"
+        print_error "INVALID COURSE PAR: ${course_par}"
         invalid=true
     fi
     
     # Exit if the game is invalid.
     if ${invalid}; then
-        print_error "INPUT ERROR(S), EXITING..."
+        print_error "GAME INPUT ERROR(S), EXITING..."
         exit 1
     fi
 }
@@ -240,20 +243,39 @@ function not_valid_gir {
         exit 1
     fi
 
-    score=$1
-    putts=$2
-    par=$3
-    ngs=$((score - putts))  # NGS = non green strokes
+    local score=$1
+    local putts=$2
+    local par=$3
+    local ngs=$((score - putts))  # NGS = non green strokes
 
-    if [[ ${par} -eq 3 && ngs -ne GIR_STROKES_3 ]]; then
-        return 0
-    elif [[ ${par} -eq 4 && ngs -ne GIR_STROKES_4 ]]; then
-        return 0
-    elif [[ ${par} -eq 5 && ngs -ne GIR_STROKES_5 ]]; then
-        return 0
+    # Based on par evaluate the non green strokes, if false then exit. (maybe just repeat the loop?)
+    if [[ ${par} -eq 3 && ${ngs} -ne ${GIR_STROKES_3} ]]; then
+        return ${TRUE}
+    elif [[ ${par} -eq 4 && ${ngs} -ne ${GIR_STROKES_4} ]]; then
+        return ${TRUE}
+    elif [[ ${par} -eq 5 && ${ngs} -ne ${GIR_STROKES_5} ]]; then
+        return ${TRUE}
     fi
 
-    return 1
+    return ${FALSE}
+}
+
+function not_valid_hole_score {
+    if [[ $# -ne 2 ]]; then
+        print_error "Invalid number of parameters..: $#"
+        exit 1
+    fi
+
+    local par=$1
+    local score=$2
+    local min=1
+    local max=$((par + 3)) # Max is triple bogey for my sake, dont allow it in your head and you wont do it.
+
+    if [[ not_bounded ${score} ${min} ${max} ]]; then
+        return ${TRUE}
+    fi
+
+    return ${FALSE}
 }
 
 function validate_hole_input {
@@ -267,16 +289,23 @@ function validate_hole_input {
     local scr=$3
     local g_reg=$4
     local putts=$5
+    local invalid=false
     
     # Checks
-    if [[ $(not_bounded ${total_score} ${MIN_SCORE} ${MAX_SCORE}) ]]; then
-        print_error "INVALID SCORE: ${total_score}"
+    if [[ $(not_valid_hole_score ${par} ${scr}) ]]; then
+        print_error "INVALID SCORE: ${scr}"
         invalid=true
     fi
-}
 
-function validate_game {
-    echo "NOT IMPLEMENTED"
+    if [[ $(not_valid_gir ${scr} ${putts} ${par}) ]]; then
+        print_error "GREEN IN REGULATION VALUE INVALID"
+        invalid=true
+    fi
+
+    if [[ ${ydg} -gt ${MAX_YARDAGE} ]]; then
+        print_error "INVALID HOLE YARDAGE: ${ydg}"
+        invalid=true
+    fi
 }
 
 # Push data to remote repository
@@ -331,11 +360,8 @@ parse_flags "$@"
 check_flags
 get_id
 read_game_info
-validate_game_input
 read_hole_info
-validate_hole_input
 validate_entries
-validate_game
 write_data
 push_data
 
