@@ -156,12 +156,20 @@ function read_hole_info {
 }
 
 # Gets highest number id from csv and sets the current id to previous + 1.
+# Gets the highest number id from csv and sets the current id to previous + 1.
 function get_id {
     if [[ -f "${csv_path}" && -s "${csv_path}" ]]; then
         prev_id=$(awk -F',' 'NR>1 {print $9}' "${csv_path}" | sort -nr | head -n1)
-        game_id=$((prev_id + 1))
+
+        # Check if prev_id is a valid integer
+        if [[ "$prev_id" =~ ^[0-9]+$ ]]; then
+            game_id=$((prev_id + 1))
+        else
+            print_error "Error: Could not determine previous ID from CSV."
+            exit 1
+        fi
     else
-        print_error "Error setting game id"
+        print_error "Error setting game ID - CSV file not found or is empty."
         exit 1
     fi
 }
