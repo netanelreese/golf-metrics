@@ -165,6 +165,7 @@ function get_id {
         if [[ "$prev_id" =~ ^[0-9]+$ ]]; then
             game_id=$((prev_id + 1))
         else
+            echo "${prev_id}"
             print_error "Error: Could not determine previous ID from CSV."
             exit 1
         fi
