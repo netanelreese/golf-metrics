@@ -160,12 +160,11 @@ function read_hole_info {
 function get_id {
     if [[ -f "${csv_path}" && -s "${csv_path}" ]]; then
         prev_id=$(awk -F',' 'NR>1 {print $9}' "${csv_path}" | sort -nr | head -n1)
-        echo "${prev_id//[[:space:]]/}"
+        # remove white space
         prev_id="${prev_id//[[:space:]]/}"
         # Check if prev_id is a valid integer
         if [[ "${prev_id}" =~ ^[0-9]+$ ]]; then
             game_id=$((prev_id + 1))
-            echo "${game_id}"
         else
             print_error "Error: Could not determine previous ID from CSV."
             exit 1
